@@ -1,0 +1,18 @@
+{
+  "name": "@blockchainx/ufund",
+  "version": "0.1.0",
+  "description": "Reference implementation and event utilities for the draft uFund ERC.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "forge test -vv",
+    "interface-ids": "forge test --match-test testInterfaceId -vv"
+  },
+  "files": [
+    "contracts",
+    "src"
+  ],
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
