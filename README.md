@@ -1,390 +1,96 @@
 # uFund
 
-uFund is a proposed ERC interface for tokenized investment funds.
+uFund is BlockchainX's implementation of **ERC-8318 — Tokenized fund lifecycle metadata**, a minimal, read-heavy, base-token-agnostic interface for tokenized investment funds (NAV, NAV freshness, lifecycle state, distributions, fees, subscription/redemption windows, maturity), with optional extensions for AUM, holder lockups, accrued yield, multiple share classes and proof-of-reserves attestations.
 
-It defines a minimal, read-heavy, base-token-agnostic interface for exposing fund-level information such as:
-
-- Net Asset Value (NAV)
-- NAV freshness and staleness
-- fund lifecycle state
-- declared and paid distributions
-- basic fee metadata
-- subscription and redemption windows
-- maturity date
-
-It also defines optional extensions for:
-
-- AUM reporting
-- holder lockup reporting
-- accrued yield reporting
-- multi-class share structures
-- proof-of-reserves attestations
-
-The goal of uFund is to reduce custom integration work for DeFi protocols, wallets, indexers, custodians, and RWA platforms that need to interact with tokenized funds.
-
----
+> **Naming.** "uFund" is the name of this repository and its implementation contract (`UFundBase`). It is **not** the name of the ERC. The standard's interfaces are neutrally named `IFundMetadata*`, and this repository implements them as defined in ERC-8318.
+>
+> The ERC itself carries a minimal, self-contained reference implementation in its own assets folder (`assets/erc-8318/` in the `ethereum/ERCs` repository). This repository is a separate, independently maintained implementation and is not normative.
 
 ## Status
 
-This repository contains a reference implementation for the proposed uFund ERC interface.
+- Implements the ERC-8318 **core** interface `IFundMetadata` (ERC-165 ID `0x9539c458`).
+- Optional extensions are declared in `contracts/interfaces/IFundMetadata.sol` but are **not** implemented by `UFundBase`, and `supportsInterface` returns `false` for them.
+- **Not audited.** Do not use in production without a full security review.
 
-The implementation is **non-normative**. The interface and events are intended to demonstrate one possible implementation pattern. Production implementations may use different internal admin functions, access-control models, oracle models, accounting systems, or operational workflows.
-
-This repository is currently intended for discussion, review, testing, and ecosystem feedback.
-
----
-
-## Why uFund?
-
-Tokenized funds and RWA products often expose similar concepts through different contract ABIs.
-
-Common fund-level data includes:
-
-- current NAV
-- NAV update timestamp
-- NAV staleness
-- fund lifecycle state
-- distribution schedule
-- fee metadata
-- subscription and redemption windows
-- maturity
-- proof-of-reserves information
-
-Today, every DeFi protocol, wallet, dashboard, custodian, and indexer often needs custom adapters for each issuer.
-
-uFund standardizes the common fund metadata and lifecycle surface while allowing issuers to keep their existing:
-
-- token model
-- custody system
-- compliance system
-- oracle system
-- accounting process
-- subscription and redemption architecture
-
----
-
-## Design Goals
-
-uFund is designed to be:
-
-- Minimal in the mandatory core
-- Read-heavy
-- Base-token agnostic
-- Compatible with existing token standards
-- Friendly to indexers and analytics systems
-- Non-prescriptive on admin/write-side implementation details
-- Easy to compose with existing RWA, vault, and permissioned-token systems
-
-uFund can be implemented alongside:
-
-- ERC-20
-- ERC-4626
-- ERC-7540
-- ERC-7575
-- ERC-3643
-- ERC-7943-style RWA systems
-
----
-
-## Events-Only Write-Side Design
-
-uFund does **not** standardize admin write function signatures.
-
-For example, the standard does not require every implementation to expose the same function names for:
-
-- setting NAV
-- changing lifecycle state
-- declaring distributions
-- updating AUM
-- publishing attestations
-
-Instead, implementations are free to use their own:
-
-- admin model
-- oracle model
-- batch process
-- multisig
-- DAO
-- off-chain accounting flow
-- role-based access-control model
-
-What uFund standardizes is the **event stream** that must be emitted when corresponding state changes occur.
-
-This allows integrators and indexers to observe fund state changes consistently without forcing all issuers into the same write architecture.
-
----
-
-## Repository Structure
+## Repository structure
 
 ```text
-src/
+contracts/
   interfaces/
-    IERC_UFUND.sol
-  UFundBase.sol
-
+    IFundMetadata.sol      # ERC-8318 enums, structs, core interface, events, extensions
+  UFundBase.sol            # implementation of IFundMetadata (OpenZeppelin AccessControl)
 test/
-  UFundBase.t.sol
-
+  UFundBase.t.sol          # Foundry tests
+src/indexer/
+  ufundEvents.ts           # ERC-8318 event ABI fragments for indexers
 foundry.toml
-README.md
-LICENSE
 ```
 
----
+## Interfaces and ERC-165 IDs
 
-## Core Interface
-
-The mandatory core interface is:
-
-```solidity
-interface IERC_UFUND
-```
-
-It includes read functions for the common fund metadata surface.
-
-### NAV
-
-```solidity
-navPerShare()
-navAsOf(uint256 timestamp)
-navUpdatedAt()
-navStale()
-navStalenessThreshold()
-valuationCurrency()
-```
-
-### Lifecycle
-
-```solidity
-lifecycleState()
-lifecycleStateUpdatedAt()
-```
-
-### Distributions
-
-```solidity
-pendingDistributions()
-lastDistribution()
-nextDistributionDate()
-```
-
-### Basic Fund Parameters
-
-```solidity
-managementFeeBps()
-performanceFeeBps()
-subscriptionFeeBps()
-redemptionFeeBps()
-minInvestment()
-subscriptionWindow()
-redemptionWindow()
-maturityDate()
-```
-
----
-
-## Optional Extensions
-
-### `IERC_UFUND_AUM`
-
-Optional extension for AUM reporting.
-
-```solidity
-aum()
-aumUpdatedAt()
-```
-
-### `IERC_UFUND_Lockup`
-
-Optional extension for holder-specific lockup information.
-
-```solidity
-lockupExpires(address account)
-```
-
-### `IERC_UFUND_Yield`
-
-Optional extension for account-level accrued yield.
-
-```solidity
-accruedYield(address account)
-```
-
-### `IERC_UFUND_MultiClass`
-
-Optional extension for funds with multiple share classes.
-
-```solidity
-shareClasses()
-defaultShareClass()
-shareClassInfo(bytes32 shareClassId)
-navPerShare(bytes32 shareClassId)
-```
-
-### `IERC_UFUND_ProofOfReserves`
-
-Optional extension for reserve attestations.
-
-```solidity
-latestAttestation()
-attestationHistory(uint256 fromTimestamp)
-```
-
----
-
-## Required Events
-
-The core interface defines standardized events such as:
-
-```solidity
-NavUpdated
-LifecycleStateChanged
-DistributionDeclared
-DistributionPaid
-DistributionCancelled
-```
-
-Optional extensions define additional events such as:
-
-```solidity
-AUMUpdated
-ShareClassAdded
-AttestationPublished
-```
-
-Indexers and analytics platforms can listen to these events across different uFund-compatible implementations.
-
----
-
-## ERC-165 Interface IDs
-
-The interface IDs are computed using ERC-165 rules.
-
-Run:
-
-```bash
-forge test --match-test testInterfaceId -vv
-```
-
-Current interface IDs:
+Interface IDs are asserted in `testInterfaceIdsMatchSpecTable` and match the table in ERC-8318:
 
 | Interface | Interface ID |
-|---|---|
-| `IERC_UFUND` | `0x35e466ae` |
-| `IERC_UFUND_AUM` | `0x081529b6` |
-| `IERC_UFUND_Lockup` | `0xb6e90569` |
-| `IERC_UFUND_Yield` | `0xc744ad19` |
-| `IERC_UFUND_MultiClass` | `0xc99baab7` |
-| `IERC_UFUND_ProofOfReserves` | `0x9655511c` |
+| --- | --- |
+| `IFundMetadata` | `0x9539c458` |
+| `IFundMetadataAUM` | `0x081529b6` |
+| `IFundMetadataLockup` | `0xb6e90569` |
+| `IFundMetadataYield` | `0xc744ad19` |
+| `IFundMetadataMultiClass` | `0xe872a87f` |
+| `IFundMetadataProofOfReserves` | `0x9655511c` |
 
+### Core reads (`IFundMetadata`)
 
----
+- NAV: `navPerShare()`, `navAsOf(uint256)`, `navUpdatedAt()`, `navStale()`, `navStalenessThreshold()`, `valuationCurrency()`
+- Lifecycle: `lifecycleState()`, `lifecycleStateUpdatedAt()`
+- Distributions: `distributionCount()`, `distributionById(uint256)`, `pendingDistributionIds()`, `lastDistributionId()`, `nextDistributionDate()`
+- Parameters: `managementFeeBps()`, `performanceFeeBps()`, `subscriptionFeeBps()`, `redemptionFeeBps()`, `minInvestment()`, `subscriptionWindow()`, `redemptionWindow()`, `maturityDate()`
 
-## Installation
+### Required events
 
-Install Foundry:
+`NavUpdated`, `LifecycleStateChanged`, `DistributionDeclared`, `DistributionPaid`, `DistributionCancelled` — with the exact field order and `indexed` layout of ERC-8318 (checked in `testEventTopicLayout`).
+
+## Implementation behaviour (`UFundBase`)
+
+The ERC standardizes reads and events, not admin functions. The write functions here (`setNav`, `setLifecycleState`, `declareDistribution`, `markDistributionPaid`, `cancelDistribution`, `setFees`, `setMinInvestment`, `setWindows`, `setMaturityDate`, `setStalenessThreshold`) are **non-normative**.
+
+- **Roles:** `FUND_ADMIN_ROLE` (lifecycle, distributions, parameters), `NAV_PUBLISHER_ROLE` (NAV), `DISTRIBUTION_AGENT_ROLE` (payment confirmation). Grant these to a multisig or timelock, not a single EOA.
+- **NAV history:** append-only, sorted by effective timestamp. `navAsOf(t)` returns the latest NAV effective at or before `t` (binary search) and reverts with `NoNavAtOrBefore` if there is none. Re-publishing at the same effective timestamp is treated as a correction. Identical re-publication emits nothing.
+- **Unset vs zero NAV:** before the first publication `navPerShare()` returns `(0, 0)`, `navUpdatedAt()` returns `0` and `navStale()` returns `true`. A published NAV of zero is valid and is told apart by `navUpdatedAt() != 0`.
+- **Staleness:** stale when `block.timestamp - navUpdatedAt() > navStalenessThreshold()` (age equal to the threshold is not stale). A stale NAV is still returned.
+- **Lifecycle:** `Pending → SubscriptionOpen → {SubscriptionClosed, Operating} → … → WindingDown → Closed`. `Closed` is terminal. `Paused` can be entered from any non-closed state and exits only to the pre-pause state or a legal successor of it. No-op transitions revert.
+- **Distributions:** IDs start at 1. `distributionById` reverts for unknown IDs. A `Declared` distribution is reported as `ExDate` once its ex-date has passed. `markDistributionPaid` can be called only on or after the record date. **It does not move funds:** the `DISTRIBUTION_AGENT_ROLE` holder is trusted to call it only after settlement has actually happened. Production deployments should bind it to verified settlement.
+
+## Build and test
 
 ```bash
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
-```
-
-Clone this repository:
-
-```bash
-git clone https://github.com/Blockchainxtech/ufund.git
+curl -L https://foundry.paradigm.xyz | bash && foundryup
+git clone --recurse-submodules https://github.com/Blockchainxtech/ufund.git
 cd ufund
-```
-
-Install dependencies:
-
-```bash
-forge install
-```
-
----
-
-## Build
-
-```bash
 forge build
-```
-
----
-
-## Test
-
-```bash
 forge test -vv
 ```
 
----
+Dependencies (pinned in `foundry.lock`): OpenZeppelin Contracts v5.6.1, forge-std v1.16.1. Compiler: solc 0.8.24.
 
-## Compute Interface IDs
+## Migration from the previous draft API
 
-```bash
-forge test --match-test testInterfaceId -vv
-```
+| Previous (`IERC_UFUND`) | Now (`IFundMetadata`, ERC-8318) |
+| --- | --- |
+| `IERC_UFUND*` interface names | `IFundMetadata*` |
+| `pendingDistributions()` returning structs | `pendingDistributionIds()` + `distributionById(uint256)` |
+| `lastDistribution()` returning a struct | `lastDistributionId()` + `distributionById(uint256)` |
+| — | `distributionCount()` |
+| `DistributionDeclared(..., amountPerShare, currency)` | adds `uint8 amountDecimals` before `currency` |
+| `DistributionPaid(id, totalAmount, paidAt)` | `DistributionPaid(id, totalAmount, amountDecimals, currency, paidAt)` |
+| Multi-class events overloaded core names | `ClassNavUpdated`, `ClassLifecycleStateChanged`, `ClassDistribution*` |
+| `navAsOf` exact-timestamp match only | at-or-before lookup |
+| Core interface ID `0x35e466ae` | `0x9539c458` |
 
----
+## Security notes
 
-## Example Usage
-
-A DeFi protocol, wallet, or indexer can detect uFund support using ERC-165:
-
-```solidity
-if (fund.supportsInterface(type(IERC_UFUND).interfaceId)) {
-    // fund supports uFund core interface
-}
-```
-
-Then it can call standardized read functions:
-
-```solidity
-(uint256 nav, uint8 decimals) = fund.navPerShare();
-LifecycleState state = fund.lifecycleState();
-bool stale = fund.navStale();
-```
-
----
-
-## Example Integration Flow
-
-A lending protocol, wallet, or RWA dashboard can use uFund like this:
-
-1. Check whether the fund supports `IERC_UFUND` through ERC-165.
-2. Read the current NAV using `navPerShare()`.
-3. Check whether the NAV is stale using `navStale()`.
-4. Read the lifecycle state using `lifecycleState()`.
-5. Read upcoming distributions using `pendingDistributions()` or `nextDistributionDate()`.
-6. Listen to standardized events for future updates.
-
-This enables the same integration logic to work across multiple tokenized fund issuers that implement the interface.
-
----
-
-## Security Notes
-
-This repository is a reference implementation only.
-
-Production deployments should carefully review:
-
-- admin access control
-- NAV update authority
-- stale NAV handling
-- event emission correctness
-- oracle trust assumptions
-- lifecycle transition rules
-- distribution payment logic
-- proof-of-reserves verification model
-- privacy impact of holder-specific lockup data
-
-The reference implementation is not audited.
-
-Do not use this implementation in production without a full security review.
-
----
+`navPerShare()` is an administered value, not a market price, and a fresh NAV is not necessarily an accurate one. Integrators should check `navStale()` and apply their own risk controls. Publishing an attestation is not proof of solvency. See the Security Considerations section of ERC-8318.
 
 ## License
 
-The reference implementation is released under the MIT License.
+Implementation: MIT. `contracts/interfaces/IFundMetadata.sol`: CC0-1.0.

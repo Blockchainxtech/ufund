@@ -1,7 +1,7 @@
 {
   "name": "@blockchainx/ufund",
   "version": "0.1.0",
-  "description": "Reference implementation and event utilities for the draft uFund ERC.",
+  "description": "uFund reference implementation of ERC-8318 (Tokenized fund lifecycle metadata) and event utilities.",
   "license": "MIT",
   "type": "module",
   "scripts": {
